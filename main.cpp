@@ -1,105 +1,61 @@
-#include <iostream>
-#include <string>
 #include "dkulpaclibs/misc/Clock.h"
-#include "curl/curl.h"
+#include "dkulpaclibs/misc/ExString.h"
 #include "ICMMeteoPicker.h"
 #include "Logger.h"
+#include "ICMPos.h"
 #include <vector>
-#include <fstream>
 #include <unistd.h>
 
-#define ICMWEATHERVIEW_X_PARAM_A    16.350365
-#define ICMWEATHERVIEW_X_PARAM_B    (-93.875912)
-#define ICMWEATHERVIEW_Y_PARAM_C    (-24.700071)
-#define ICMWEATHERVIEW_Y_PARAM_D    1712.738885
 
 using namespace std;
 
-vector<string> cityNames;
-vector<int> cityX;
-vector<int> cityY;
 vector<int> updateHours;
 
 void initUpdateHours();
-bool isUpdateNeeded(int lastUpdate);
-void parseCitiesFile(const string &path);
-int findCity(const string &cityName);
+bool isUpdateNeeded(int lastUpdate, Logger *logger);
 
 
 int main(int argc, char** argv) {
+    vector<ICMPos> places;
+
+    if(argc>1){
+        for(int i=1; i<argc; i++){
+            if(string(argv[i]).find_first_of("0123456789")!=string::npos) {
+                vector<string> parts = ExString::split(string(argv[i]), ",");
+                places.emplace_back(atoi(parts[0].c_str()), atoi(parts[1].c_str()));
+            } else {
+                places.emplace_back(string(argv[i]));
+            }
+        }
+    } else {
+        places.emplace_back(250, 406);
+    }
+
     bool runLoop= true;
     int lastUpdateHour=Clock::nowHour();
     Logger logger("/home/dkulpa/icmMeteo/icmpicker.log");
 
+    logger.write("main", "Start");
+    for(int i=0; i<places.size(); i++){
+        logger.write("places", (to_string(places[i].getX())+", "+to_string(places[i].getY())).c_str());
+    }
     initUpdateHours();
-
-    //Create CURL handler
-    cout << "Create CURL handler" << endl;
 
     //Download meteo image
     while (runLoop) {
-        if(isUpdateNeeded(lastUpdateHour)){
-            ICMMeteoPicker::getMeteograph(250, 406, "/home/dkulpa/icmLogs");
+        if(isUpdateNeeded(lastUpdateHour, &logger)){
+            for(int i=0; i<places.size(); i++) {
+                ICMMeteoPicker::getMeteograph(places[i].getX(), places[i].getY(), "/home/dkulpa/icmLogs");
+            }
             lastUpdateHour= Clock::nowHour();
         }
         if(Clock::nowYear()>2030)
             runLoop= false;
 
-        cout << "Sleeping... (1min)" << endl;
         usleep(60000000);
     }
 
     return 0;
-}
-
-void parseCitiesFile(const string &path) {
-    ifstream file;
-
-    file.open(path);
-    if(!file.is_open()){
-        cout << "Cities file not found!" << endl;
-    } else {
-        cout << "Cities file parsing!" << endl;
-        string line;
-
-        string latd;
-        string latm;
-        string lngd;
-        string lngm;
-        string name;
-
-        float lat;
-        float lng;
-        int x;
-        int y;
-
-        getline(file, line);
-        getline(file, line);
-        getline(file, line);
-        while (!line.empty()) {
-            size_t latStart = line.find_last_of(' ');
-            size_t lastW = line.find_last_not_of(' ', latStart);
-            size_t lngStart = line.find_last_of(" )", lastW);
-
-            latd = line.substr(latStart + 1, 2);
-            latm = line.substr(latStart + 5, 2);
-            lngd = line.substr(lngStart + 1, 2);
-            lngm = line.substr(lngStart + 5, 2);
-
-            lat = stof(latd) + stof(latm) / 60;
-            lng = stof(lngd) + stof(lngm) / 60;
-            x = (int) (lng * ICMWEATHERVIEW_X_PARAM_A + ICMWEATHERVIEW_X_PARAM_B);
-            y = (int) (lat * ICMWEATHERVIEW_Y_PARAM_C + ICMWEATHERVIEW_Y_PARAM_D);
-
-            lastW = line.find_last_not_of(' ', lngStart);
-            name = line.substr(0, lastW + 1);
-            cityNames.push_back(name);
-            cityX.push_back(x);
-            cityY.push_back(y);
-
-            getline(file, line);
-        }
-    }
 }
 
 void initUpdateHours() {
@@ -109,24 +65,16 @@ void initUpdateHours() {
     updateHours.push_back(20);
 }
 
-bool isUpdateNeeded(int lastUpdate){
+bool isUpdateNeeded(int lastUpdate, Logger *logger){
     if(Clock::nowHour()!=lastUpdate){
         for(int i=0; i<updateHours.size(); i++){
             if(Clock::nowHour()==updateHours[i]){
-                cout << Clock::nowHour() << ":00 meteo update needed" << endl;
+                char s[256];
+                sprintf(s, "%02d:00 meteo update needed", Clock::nowHour());
+                logger->write("ICMMeteoLogger", s);
                 return true;
             }
         }
     }
     return false;
-}
-
-int findCity(const string &cityName) {
-    for(int i=0; i<cityNames.size(); i++){
-        if(cityNames[i]==cityName){
-            return i;
-        }
-    }
-
-    return -1;
 }

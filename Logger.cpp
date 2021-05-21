@@ -1,5 +1,6 @@
 #include "Logger.h"
 
+
 Logger::Logger(string debugFileName) {
     streamMutex= PTHREAD_MUTEX_INITIALIZER;
 

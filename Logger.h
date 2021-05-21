@@ -16,8 +16,6 @@ public:
 
     void write(const char *tag, const char *msg);
 
-    friend Logger& operator<<(const Logger &in, const string& s);
-
     void finish();
 private:
     ofstream debugStream;
