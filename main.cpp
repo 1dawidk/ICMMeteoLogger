@@ -52,7 +52,7 @@ int main(int argc, char** argv) {
         if(Clock::nowYear()>2030)
             runLoop= false;
 
-        usleep(60000000);
+        usleep(600000000);
     }
 
     return 0;
