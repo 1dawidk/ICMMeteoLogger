@@ -7,5 +7,5 @@ find_package(CURL REQUIRED)
 find_package(dkulpaclibs REQUIRED)
 find_package(OpenCV REQUIRED)
 
-add_executable(ICMMeteoLogger main.cpp)
+add_executable(ICMMeteoLogger main.cpp Logger.h Logger.cpp ICMMeteoPicker.cpp ICMMeteoPicker.h)
 target_link_libraries(ICMMeteoLogger ${dkulpaclibs_misc_LIB} ${CURL_LIBRARIES} ${OpenCV_LIBS})

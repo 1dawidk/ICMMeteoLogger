@@ -2,6 +2,8 @@
 #include <string>
 #include "dkulpaclibs/misc/Clock.h"
 #include "curl/curl.h"
+#include "ICMMeteoPicker.h"
+#include "Logger.h"
 #include <vector>
 #include <fstream>
 #include <unistd.h>
@@ -18,9 +20,6 @@ vector<int> cityX;
 vector<int> cityY;
 vector<int> updateHours;
 
-string downloadMeteo(CURL* curlH, int cityIdx);
-size_t write_data(char *buf, size_t size, size_t nmemb, void *userp);
-void processImage(const string &filename);
 void initUpdateHours();
 bool isUpdateNeeded(int lastUpdate);
 void parseCitiesFile(const string &path);
@@ -29,94 +28,25 @@ int findCity(const string &cityName);
 
 int main(int argc, char** argv) {
     bool runLoop= true;
-    int lastUpdateHour=Clock::getHour();
-    parseCitiesFile("./cities_latlng");
-    int city= findCity(argv[1]);
+    int lastUpdateHour=Clock::nowHour();
+    Logger logger("/home/dkulpa/icmMeteo/icmpicker.log");
 
     initUpdateHours();
 
     //Create CURL handler
     cout << "Create CURL handler" << endl;
-    CURL  *curlHandle= curl_easy_init();
 
     //Download meteo image
     while (runLoop) {
         if(isUpdateNeeded(lastUpdateHour)){
-            string fileName= downloadMeteo(curlHandle, city);
-            processImage(fileName);
-            lastUpdateHour= Clock::getHour();
+            ICMMeteoPicker::getMeteograph(250, 406, "/home/dkulpa/icmLogs");
+            lastUpdateHour= Clock::nowHour();
         }
-        if(Clock::getYear()>2030)
+        if(Clock::nowYear()>2030)
             runLoop= false;
 
         cout << "Sleeping... (1min)" << endl;
         usleep(60000000);
-    }
-
-    //CURL cleanup
-    curl_easy_cleanup(curlHandle);
-
-    return 0;
-}
-
-string downloadMeteo(CURL* curlH, int cityIdx){
-    cout << "Download image:" << endl;
-
-    string urlBuilder= "https://www.meteo.pl/um/metco/mgram_pict.php?ntype=0u&fdate=";
-
-    //Append year
-    urlBuilder+= to_string(Clock::getYear());
-
-    //Get time
-    int month= Clock::getMonth();
-    int day= Clock::getDay();
-    int hour= Clock::getHour();
-
-    //Append month
-    if(month<10)
-        urlBuilder+="0";
-    urlBuilder+= to_string(month);
-
-    //Append day
-    if(hour<7)
-        day--;
-    if(day<10)
-        urlBuilder+="0";
-    urlBuilder+= to_string(day);
-
-    //Append hour
-    if(hour<7)
-        urlBuilder+= "18";
-    else if (hour<12)
-        urlBuilder+= "00";
-    else if (hour<19)
-        urlBuilder+= "06";
-    else
-        urlBuilder+= "12";
-
-    urlBuilder+= "&row="+to_string(cityY[cityIdx]);
-    urlBuilder+= "&col="+to_string(cityX[cityIdx]);
-    urlBuilder+= "&lang=pl";
-
-    string datestamp= to_string(Clock::getYear())+to_string(month)+to_string(day);
-    string filename= "warszawa_"+datestamp+"_"+to_string(hour)+".png";
-    std::ofstream stream(filename, std::ostream::binary);
-
-    curl_easy_setopt(curlH, CURLOPT_URL, urlBuilder.c_str());
-    curl_easy_setopt(curlH, CURLOPT_WRITEFUNCTION, write_data);
-    curl_easy_setopt(curlH, CURLOPT_WRITEDATA, &stream);
-
-    curl_easy_perform(curlH);
-
-    return filename;
-}
-
-size_t write_data(char *buf, size_t size, size_t nmemb, void *userp) {
-    if (userp) {
-        std::ostream& os = *static_cast<std::ostream*>(userp);
-        std::streamsize len = size * nmemb;
-        if (os.write(static_cast<char*>(buf), len))
-            return len;
     }
 
     return 0;
@@ -173,17 +103,17 @@ void parseCitiesFile(const string &path) {
 }
 
 void initUpdateHours() {
-    updateHours.push_back(1);
-    updateHours.push_back(7);
-    updateHours.push_back(13);
-    updateHours.push_back(19);
+    updateHours.push_back(2);
+    updateHours.push_back(8);
+    updateHours.push_back(14);
+    updateHours.push_back(20);
 }
 
 bool isUpdateNeeded(int lastUpdate){
-    if(Clock::getHour()!=lastUpdate){
+    if(Clock::nowHour()!=lastUpdate){
         for(int i=0; i<updateHours.size(); i++){
-            if(Clock::getHour()==updateHours[i]){
-                cout << Clock::getHour() << ":00 meteo update needed" << endl;
+            if(Clock::nowHour()==updateHours[i]){
+                cout << Clock::nowHour() << ":00 meteo update needed" << endl;
                 return true;
             }
         }
@@ -199,8 +129,4 @@ int findCity(const string &cityName) {
     }
 
     return -1;
-}
-
-void processImage(const string &filename){
-
 }
