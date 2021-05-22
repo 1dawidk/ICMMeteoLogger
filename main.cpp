@@ -1,7 +1,7 @@
 #include "dkulpaclibs/misc/Clock.h"
 #include "dkulpaclibs/misc/ExString.h"
 #include "ICMMeteoPicker.h"
-#include "Logger.h"
+#include "dkulpaclibs/misc/Logger.h"
 #include "ICMPos.h"
 #include <vector>
 #include <unistd.h>
@@ -18,8 +18,8 @@ bool isUpdateNeeded(int lastUpdate, Logger *logger);
 int main(int argc, char** argv) {
     vector<ICMPos> places;
 
-    if(argc>1){
-        for(int i=1; i<argc; i++){
+    if(argc>2){
+        for(int i=2; i<argc; i++){
             if(string(argv[i]).find_first_of("0123456789")!=string::npos) {
                 vector<string> parts = ExString::split(string(argv[i]), ",");
                 places.emplace_back(atoi(parts[0].c_str()), atoi(parts[1].c_str()));
@@ -28,30 +28,34 @@ int main(int argc, char** argv) {
             }
         }
     } else {
-        places.emplace_back(250, 406);
+        cout << "Syntax: ICMMeteoLogger /meteographs/directory x1,y1 [x2,y2 x3,y3 ...]" << endl;
+        return 1;
     }
 
     bool runLoop= true;
     int lastUpdateHour=Clock::nowHour();
-    Logger logger("/home/dkulpa/icmMeteo/icmpicker.log");
+    Logger logger(string(argv[1])+"/icmpicker.log");
 
-    logger.write("main", "Start");
+    logger.write("Start");
     for(int i=0; i<places.size(); i++){
-        logger.write("places", (to_string(places[i].getX())+", "+to_string(places[i].getY())).c_str());
+        logger.write("Places", (to_string(places[i].getX())+", "+to_string(places[i].getY())).c_str());
     }
+
     initUpdateHours();
 
     //Download meteo image
     while (runLoop) {
         if(isUpdateNeeded(lastUpdateHour, &logger)){
             for(int i=0; i<places.size(); i++) {
-                ICMMeteoPicker::getMeteograph(places[i].getX(), places[i].getY(), "/home/dkulpa/icmLogs");
+                ICMMeteoPicker::getMeteograph(places[i].getX(), places[i].getY(), argv[1]);
+                logger.write("%d,%d meteograph downloaded", places[i].getX(), places[i].getY());
             }
             lastUpdateHour= Clock::nowHour();
         }
         if(Clock::nowYear()>2030)
             runLoop= false;
 
+        logger.write("Sleeping 10min...");
         usleep(600000000);
     }
 
